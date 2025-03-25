@@ -1,10 +1,70 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h> 
+#include <unistd.h>
+#include <string.h>
 
 #define LSH_BUFFER_SIZE 1024
 
 #define LSH_TOK_BUFFER_SIZE 64
 #define LSH_TOK_DELIMITER " \t\r\n\a"
+
+// forward declarations of funcs
+int lsh_cd(char **args);
+int lsh_help(char **args);
+int lsh_exit(char **args);
+
+// list of builtin commands
+char *builtin_str[] = {
+    "cd",
+    "help",
+    "exit"
+};
+
+// list of corresponding funcs
+int (*builtin_func[]) (char **) = {
+    &lsh_cd,
+    &lsh_help,
+    &lsh_exit
+};
+
+int lsh_num_builtins() {
+    return sizeof(builtin_str) / sizeof(char *);
+}
+
+// implementations
+int lsh_cd(char **args) {
+    if(args[1] == NULL) {
+        // check if has argument to cd
+        fprintf(stderr, "lsh: expected argument to \"cd\"\n");
+    } else {
+        // ifc chdir return anything besides 0, some error happened
+        if(chdir(args[1]) != 0) {
+            perror("lsh");
+        }
+    }
+
+    // 1 == success
+    return 1;
+}
+
+int lsh_help(char **args) {
+    printf("Enzo Bernardis LSH\n");
+    printf("type program names and arguments, and hit enter\n");
+    printf("The following are built in:\n");
+
+    for(int i = 0; i < lsh_num_builtins(); i++) {
+        printf("* %s\n", builtin_str[i]);
+    }
+
+    printf("use the man command for information on other programs.\n");
+    return 1;
+}
+
+int lsh_exit(char **args) {
+    return 0;
+}
 
 char *lsh_read_line() {
     // defining and allocating
@@ -23,7 +83,7 @@ char *lsh_read_line() {
         c = getchar(); // read a character
 
         // if hit end of file, replace it and return
-        if(c == EOF || c == "\n") { 
+        if(c == EOF || c == '\n') { 
             buffer[position] = '\0';
             return buffer;
         } else {
@@ -81,6 +141,48 @@ char **lsh_split_line(char* line) {
     return tokens;
 }
 
+int lsh_launch(char **args) {
+    pid_t pid, wpid;
+    int status;
+
+    pid = fork();
+    if(pid == 0) {
+        // child process
+        if(execvp(args[0], args) == -1) {
+            perror("lsh");
+        }
+
+        exit(EXIT_FAILURE);
+    } else if(pid < 0) {
+        // error forking
+        perror("lsh");
+    } else {
+        // parent process
+        do {
+            wpid = waitpid(pid, &status, WUNTRACED);
+        } while(!WIFEXITED(status) && !WIFSIGNALED(status));
+    }
+
+    return 1;
+}
+
+int lsh_execute(char **args) {
+    // empty command
+    if(args == NULL) {
+        return 1;
+    }
+
+    // iterates through the array until it finds the command
+    for(int i = 0; i < lsh_num_builtins(); i++) {
+        if(strcmp(args[0], builtin_str[i]) == 0) {
+            return (*builtin_func[i])(args);
+        }
+    }
+
+    // if it is not a builtin command, go to launch
+    return lsh_launch(args);
+}
+
 void lsh_loop() {
     char *line;
     char **args;
@@ -98,5 +200,7 @@ void lsh_loop() {
 }
 
 int main(int argc, char **argv) {
+    lsh_loop();
+
     return EXIT_SUCCESS;
 }
