@@ -14,19 +14,22 @@
 int lsh_cd(char **args);
 int lsh_help(char **args);
 int lsh_exit(char **args);
+int lsh_create_file(char **agrs);
 
 // list of builtin commands
 char *builtin_str[] = {
     "cd",
     "help",
-    "exit"
+    "exit",
+    "create-file"
 };
 
 // list of corresponding funcs
 int (*builtin_func[]) (char **) = {
     &lsh_cd,
     &lsh_help,
-    &lsh_exit
+    &lsh_exit,
+    &lsh_create_file
 };
 
 int lsh_num_builtins() {
@@ -64,6 +67,23 @@ int lsh_help(char **args) {
 
 int lsh_exit(char **args) {
     return 0;
+}
+
+int lsh_create_file(char **args) {
+    const char *filename = args[1];
+
+    if(args[1] == NULL) {
+        fprintf(stderr, "lsh: cannot create file without a argument for name\n");
+    } else {
+        FILE *file = fopen(filename, "w");
+
+        if(file == NULL) {
+            perror("error trying to create file");
+        }
+
+        fclose(file);
+        printf("file created with success: %s\n", filename);
+    }
 }
 
 char *lsh_read_line() {
